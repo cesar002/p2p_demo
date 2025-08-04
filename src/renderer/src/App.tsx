@@ -1,0 +1,93 @@
+import Versions from './components/Versions'
+import electronLogo from './assets/electron.svg'
+import { useEffect, useRef, useState } from 'react';
+
+const SIGNAL_SERVER_URL = 'ws://localhost:3002';
+
+function App(): React.JSX.Element {
+  const [myId, setMyId] = useState<string | null>(null);
+  const [textData, setText] = useState<string | null>(null);
+  const [targetId, setTargetId] = useState('');
+  const wsRef = useRef<WebSocket | null>(null);
+
+
+  const connectToPeer = (initiator: boolean) => {
+    window.electron.ipcRenderer.invoke('create-peer', {
+      initiator, targetId
+    })
+  }
+
+  const enviarInfo = () => {
+    if(!textData) return;
+
+    window.electron.ipcRenderer.send('send-data', {
+        targetId,
+        message: textData,
+      });
+  }
+
+  useEffect(() => {
+      const ws = new WebSocket(SIGNAL_SERVER_URL);
+      wsRef.current = ws;
+
+      ws.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+        console.log(msg);
+        if (msg.type === 'Connected') {
+          setMyId(msg.id);
+        } else if (msg.type === 'offer') {
+            window.electron.ipcRenderer.send('signal-peer', {
+              targetId: msg.from,
+              data: { ...msg.peerData }
+            });
+        }
+      };
+
+      return () => {
+        ws.close();
+      };
+    }, []);
+
+    useEffect(()=>{
+      window.electron.ipcRenderer.on('peer-signal', (_, { data, targetId }) => {
+        wsRef.current?.send(JSON.stringify({
+          to: targetId,
+          peerData: {
+            ...data,
+          }
+        }));
+      });
+    }, []);
+
+  return (
+    <>
+      <div>
+        <p>P2P Onefacture</p>
+        <div>
+          <h2>Mi ID: {myId}</h2>
+
+          <input
+            type="text"
+            placeholder="ID del otro peer"
+            value={targetId}
+            onChange={(e) => setTargetId(e.target.value)}
+          />
+          <br />
+
+          <button onClick={() => connectToPeer(true)}>Iniciar conexión</button>
+          <br />
+          <button onClick={() => connectToPeer(false)}>Esperar conexión</button>
+
+        </div>
+        <div>
+          <br /><br />
+          <textarea value={textData ?? ''} onChange={e => setText(e.target.value)}></textarea>
+          <br />
+          <button onClick={enviarInfo}>Enviar</button>
+        </div>
+      </div>
+    </>
+  )
+}
+
+export default App
