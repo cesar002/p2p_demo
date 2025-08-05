@@ -15,7 +15,27 @@ function App(): React.JSX.Element {
   const connectToPeer = (initiator: boolean) => {
     window.electron.ipcRenderer.invoke('create-peer', {
       initiator, targetId
-    })
+    });
+  }
+
+  const initConection = () => {
+    if(!targetId) return;
+
+    wsRef.current?.send(JSON.stringify({
+      to: targetId,
+      type: 'InitiateConnection',
+    }));
+
+    window.electron.ipcRenderer.invoke('create-peer', {
+      initiator: true, targetId
+    });
+  }
+
+  const initWaitConnection = (clientID: string) => {
+    console.log('iniciando como espera', clientID);
+    window.electron.ipcRenderer.invoke('create-peer', {
+      initiator: false, targetId: clientID
+    });
   }
 
   const enviarInfo = () => {
@@ -45,6 +65,8 @@ function App(): React.JSX.Element {
 
         } else if (msg.type === 'ConnectedClients') {
           setClientsConnected(msg.clients);
+        }else if(msg.type == 'InitiateConnection') {
+          initWaitConnection(msg.from);
         };
       }
 
@@ -72,18 +94,18 @@ function App(): React.JSX.Element {
           <h2>Mi ID: {myId}</h2>
 
           <br />
-          <table>
+          <table style={{ width: '100%' }}>
             <thead>
               <tr>
-                <th>ID</th>
+                <th>Clientes conectados</th>
               </tr>
             </thead>
             <tbody>
               {clientsConnected.filter(clientId => clientId !== myId).map(clientId => (
                 <tr key={clientId}>
                   <td>
-                    <input type="radio" name="targetId" id={clientId} onChange={() => setTargetId(clientId)} />
-                    <input type="text" value={clientId} readOnly />
+                    <input type="radio" name="targetId" id={clientId} onChange={() => setTargetId(clientId)} style={{ marginRight: '1rem' }} />
+                    <input type="text" value={clientId} readOnly  style={{ width: '90%' }}/>
                   </td>
                 </tr>
               ))}
@@ -91,6 +113,7 @@ function App(): React.JSX.Element {
           </table>
 
           <br />
+          <button disabled={!targetId} onClick={initConection}>Iniciar conexión</button>
 
         </div>
         <div>
