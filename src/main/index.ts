@@ -80,7 +80,7 @@ app.whenReady().then(() => {
     });
 
     peer.on('data', (data) => {
-      console.log('data', data);
+      console.log('data', data.toString());
       event.sender.send('peer-data', { targetId, data: data.toString() });
     });
 
