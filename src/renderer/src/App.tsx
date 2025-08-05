@@ -58,12 +58,12 @@ function App(): React.JSX.Element {
         if (msg.type === 'Connected') {
           setMyId(msg.id);
         } else if (msg.type === 'offer') {
+          setTargetId(msg.from);
             window.electron.ipcRenderer.send('signal-peer', {
               targetId: msg.from,
               data: { ...msg.peerData }
             });
         } else if (msg.type === 'answer') {
-          debugger;
           window.electron.ipcRenderer.send('signal-peer', {
             targetId: msg.from,
             data: { ...msg.peerData }
