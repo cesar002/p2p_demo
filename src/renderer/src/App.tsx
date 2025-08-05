@@ -78,7 +78,7 @@ function App(): React.JSX.Element {
               </tr>
             </thead>
             <tbody>
-              {clientsConnected.map(clientId => (
+              {clientsConnected.filter(clientId => clientId !== myId).map(clientId => (
                 <tr key={clientId}>
                   <td>{clientId}</td>
                 </tr>
