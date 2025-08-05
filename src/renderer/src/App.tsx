@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 const SIGNAL_SERVER_URL = 'ws://localhost:3002';
 
 function App(): React.JSX.Element {
+  const [ iniciandoConexion, setIniciandoConexion ] = useState(false);
   const [ clientsConnected, setClientsConnected ] = useState<string[]>([]);
   const [myId, setMyId] = useState<string | null>(null);
   const [textData, setText] = useState<string | null>(null);
@@ -76,14 +77,22 @@ function App(): React.JSX.Element {
     }, []);
 
     useEffect(()=>{
-      window.electron.ipcRenderer.on('peer-signal', (_, { data, targetId }) => {
-        wsRef.current?.send(JSON.stringify({
-          to: targetId,
-          peerData: {
-            ...data,
-          }
-        }));
-      });
+      const handlePeerSignal = (_, { data, targetId }) => {
+        wsRef.current?.send(
+          JSON.stringify({
+            to: targetId,
+            peerData: { ...data },
+          })
+        );
+      };
+
+      // Agregar listener
+      window.electron.ipcRenderer.on('peer-signal', handlePeerSignal);
+
+      // Limpiar listener al desmontar
+      return () => {
+        window.electron.ipcRenderer.removeListener('peer-signal', handlePeerSignal);
+      };
     }, []);
 
   return (
@@ -113,7 +122,9 @@ function App(): React.JSX.Element {
           </table>
 
           <br />
+          { clientsConnected.length > 0 &&
           <button disabled={!targetId} onClick={initConection}>Iniciar conexión</button>
+          }
 
         </div>
         <div>
