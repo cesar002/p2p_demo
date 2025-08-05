@@ -63,7 +63,11 @@ function App(): React.JSX.Element {
               data: { ...msg.peerData }
             });
         } else if (msg.type === 'answer') {
-
+          debugger;
+          window.electron.ipcRenderer.send('signal-peer', {
+            targetId: msg.from,
+            data: { ...msg.peerData }
+          });
         } else if (msg.type === 'ConnectedClients') {
           setClientsConnected(msg.clients);
         }else if(msg.type == 'InitiateConnection') {
@@ -86,12 +90,10 @@ function App(): React.JSX.Element {
         );
       };
 
-      // Agregar listener
       window.electron.ipcRenderer.on('peer-signal', handlePeerSignal);
 
-      // Limpiar listener al desmontar
       return () => {
-        window.electron.ipcRenderer.removeListener('peer-signal', handlePeerSignal);
+        window.electron.ipcRenderer.removeAllListeners('peer-signal');
       };
     }, []);
 
