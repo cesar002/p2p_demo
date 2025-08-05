@@ -71,6 +71,7 @@ function App(): React.JSX.Element {
         <div>
           <h2>Mi ID: {myId}</h2>
 
+          <br />
           <table>
             <thead>
               <tr>
@@ -80,23 +81,16 @@ function App(): React.JSX.Element {
             <tbody>
               {clientsConnected.filter(clientId => clientId !== myId).map(clientId => (
                 <tr key={clientId}>
-                  <td>{clientId}</td>
+                  <td>
+                    <input type="radio" name="targetId" id={clientId} onChange={() => setTargetId(clientId)} />
+                    <input type="text" value={clientId} readOnly />
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
 
-          <input
-            type="text"
-            placeholder="ID del otro peer"
-            value={targetId}
-            onChange={(e) => setTargetId(e.target.value)}
-          />
           <br />
-
-          <button onClick={() => connectToPeer(true)}>Iniciar conexión</button>
-          <br />
-          <button onClick={() => connectToPeer(false)}>Esperar conexión</button>
 
         </div>
         <div>
