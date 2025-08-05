@@ -97,9 +97,8 @@ app.whenReady().then(() => {
   ipcMain.on('signal-peer', (event, { targetId, data }) => {
     console.log('aqui');
     console.log(targetId);
-    console.log(Array.from(peers.entries()));
     const peer = peers.get(targetId);
-    console.log(peer);
+    console.log(data);
     if (peer) peer.signal(data);
   });
 
