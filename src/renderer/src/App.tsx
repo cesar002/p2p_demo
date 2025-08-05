@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 const SIGNAL_SERVER_URL = 'ws://localhost:3002';
 
 function App(): React.JSX.Element {
+  const [ clientsConnected, setClientsConnected ] = useState<string[]>([]);
   const [myId, setMyId] = useState<string | null>(null);
   const [textData, setText] = useState<string | null>(null);
   const [targetId, setTargetId] = useState('');
@@ -40,8 +41,12 @@ function App(): React.JSX.Element {
               targetId: msg.from,
               data: { ...msg.peerData }
             });
-        }
-      };
+        } else if (msg.type === 'answer') {
+
+        } else if (msg.type === 'ConnectedClients') {
+          setClientsConnected(msg.clients);
+        };
+      }
 
       return () => {
         ws.close();
@@ -65,6 +70,21 @@ function App(): React.JSX.Element {
         <p>P2P Onefacture</p>
         <div>
           <h2>Mi ID: {myId}</h2>
+
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+              </tr>
+            </thead>
+            <tbody>
+              {clientsConnected.map(clientId => (
+                <tr key={clientId}>
+                  <td>{clientId}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
 
           <input
             type="text"
