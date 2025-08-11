@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
-const SIGNAL_SERVER_URL = 'ws://localhost:3002';
+const SIGNAL_SERVER_URL = 'wss://signal-p2p.chingoncode.com';
 
 interface IFile {
   name: string;
