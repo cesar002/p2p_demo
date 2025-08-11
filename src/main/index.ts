@@ -188,6 +188,8 @@ app.whenReady().then(() => {
           data: chunk,
           fileSize: fileBuffer.length // Tamaño original en bytes
         }));
+
+        await new Promise(resolve => setTimeout(resolve, 0));
       }
     } catch (error) {
       console.error('Error sending file:', error);
