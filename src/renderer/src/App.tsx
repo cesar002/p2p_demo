@@ -1,10 +1,25 @@
-import Versions from './components/Versions'
-import electronLogo from './assets/electron.svg'
 import { useEffect, useRef, useState } from 'react';
 
 const SIGNAL_SERVER_URL = 'ws://localhost:3002';
 
+interface IFile {
+  name: string;
+  size: number;
+  type: string;
+  isDirectory: boolean;
+  path: string;
+}
+
+interface IShareFolder {
+  folderPath: string;
+  files: IFile[];
+}
+
 function App(): React.JSX.Element {
+
+  const [ selectedShareDirectory, setSelectedShareDirectory ] = useState<IShareFolder | null>(null);
+  const [ selectedTargetShareDirectory, setSelectedTargetShareDirectory ] = useState<IShareFolder | null>(null);
+
   const [ iniciandoConexion, setIniciandoConexion ] = useState(false);
   const [ clientsConnected, setClientsConnected ] = useState<string[]>([]);
   const [myId, setMyId] = useState<string | null>(null);
@@ -48,6 +63,11 @@ function App(): React.JSX.Element {
       });
   }
 
+  const selectShareDirectory = async () => {
+    const selectedFolder = await window.electron.ipcRenderer.invoke('select-folder');
+    setSelectedShareDirectory(selectedFolder);
+  }
+
   useEffect(() => {
       const ws = new WebSocket(SIGNAL_SERVER_URL);
       wsRef.current = ws;
@@ -72,30 +92,44 @@ function App(): React.JSX.Element {
           setClientsConnected(msg.clients);
         }else if(msg.type == 'InitiateConnection') {
           initWaitConnection(msg.from);
+        }else if(msg.type === 'ShareFolderDirectory') {
+          setSelectedTargetShareDirectory(msg.data);
         };
       }
 
       return () => {
         ws.close();
       };
-    }, []);
+  }, []);
 
-    useEffect(()=>{
-      const handlePeerSignal = (_, { data, targetId }) => {
-        wsRef.current?.send(
-          JSON.stringify({
-            to: targetId,
-            peerData: { ...data },
-          })
-        );
-      };
+  useEffect(()=>{
+    const handlePeerSignal = (_, { data, targetId }) => {
+      wsRef.current?.send(
+        JSON.stringify({
+          to: targetId,
+          peerData: { ...data },
+        })
+      );
+    };
 
-      window.electron.ipcRenderer.on('peer-signal', handlePeerSignal);
+    window.electron.ipcRenderer.on('peer-signal', handlePeerSignal);
 
-      return () => {
-        window.electron.ipcRenderer.removeAllListeners('peer-signal');
-      };
-    }, []);
+    return () => {
+      window.electron.ipcRenderer.removeAllListeners('peer-signal');
+    };
+  }, []);
+
+  useEffect(()=>{
+    if(!selectedShareDirectory) return;
+    if(!targetId) return;
+
+    wsRef.current?.send(JSON.stringify({
+      to: targetId,
+      type: 'ShareFolderDirectory',
+      data: selectedShareDirectory,
+    }));
+
+  }, [selectedShareDirectory, targetId])
 
   return (
     <>
@@ -127,6 +161,31 @@ function App(): React.JSX.Element {
           { clientsConnected.length > 0 &&
           <button disabled={!targetId} onClick={initConection}>Iniciar conexión</button>
           }
+          <button onClick={selectShareDirectory} style={{ marginLeft: '1rem' }}>
+            Seleccionar carpeta compartida
+          </button>
+
+          <br />
+          <br />
+          <div style={{ width: '100%', background: '#FFF', color: 'gray', paddingLeft: '1rem', paddingRight: '1rem', paddingTop: '1rem', paddingBottom: '1rem' }}>
+            <table style={{ width: '100%' }}>
+              <tbody>
+                {selectedTargetShareDirectory?.files.map(file => (
+                  <tr key={file.path} style={{ borderBottom: '1px solid #ccc' }}>
+                    <td>
+                      <button>
+                        Descargar
+                      </button>
+                    </td>
+                    <td>{file.name}</td>
+
+                    <td>{file.type}</td>
+                    <td>{file.path}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
         </div>
         <div>

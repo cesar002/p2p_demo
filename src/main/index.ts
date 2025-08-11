@@ -1,9 +1,11 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import Peer from 'simple-peer';
 import wrtc from 'wrtc';
+import fs from 'fs';
+import path from 'path';
 
 const peers = new Map<string, InstanceType<typeof Peer>>();
 
@@ -107,6 +109,36 @@ app.whenReady().then(() => {
     const peer = peers.get(targetId);
     if (peer) peer.send(message);
   });
+
+  ipcMain.handle('select-folder', async () => {
+    const result = await dialog.showOpenDialog({
+        properties: ['openDirectory']
+    });
+
+    if (result.canceled) return null;
+
+    const folderPath = result.filePaths[0];
+    const files = fs.readdirSync(folderPath);
+
+    const fileDetails = files.map(fileName => {
+        const fullPath = path.join(folderPath, fileName);
+        const stats = fs.statSync(fullPath);
+
+        return {
+            name: fileName,
+            path: fullPath,
+            size: stats.isFile() ? stats.size : null, // Tamaño solo si es archivo
+            type: stats.isFile() ? path.extname(fileName) : 'folder',
+            isDirectory: stats.isDirectory()
+        };
+    }).filter(file => !file.isDirectory);
+
+    return {
+        folderPath,
+        files: fileDetails
+    };
+  });
+
 
   createWindow()
 
