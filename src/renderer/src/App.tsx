@@ -69,7 +69,7 @@ function App(): React.JSX.Element {
     setSelectedShareDirectory(selectedFolder);
   }
 
-  const downloadFile = (pathFile: string, fileName: string) => {
+  const downloadFile = (pathFile: string, fileName: string, fileSize: number) => {
     if(!targetId) return;
     if(!isConnected) return;
 
@@ -79,6 +79,7 @@ function App(): React.JSX.Element {
       data: {
         pathFile,
         fileName,
+        fileSize,
       }
     }));
   }
@@ -110,10 +111,12 @@ function App(): React.JSX.Element {
         }else if(msg.type === 'ShareFolderDirectory') {
           setSelectedTargetShareDirectory(msg.data);
         }else if(msg.type === 'DownloadFile') {
-          const { pathFile } = msg.data;
+          const { pathFile, fileName, fileSize } = msg.data;
           window.electron.ipcRenderer.send('send-file', {
             targetId: msg.from,
             filePath: pathFile,
+            fileName,
+            fileSize
           });
         }
       }
@@ -210,7 +213,7 @@ function App(): React.JSX.Element {
                   <tr key={file.path} style={{ borderBottom: '1px solid #ccc' }}>
                     <td>
                       { isConnected &&
-                      <button onClick={()=>downloadFile(file.path, file.name)}>
+                      <button onClick={()=>downloadFile(file.path, file.name, file.size)}>
                         Descargar
                       </button>
                       }

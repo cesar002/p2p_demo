@@ -8,9 +8,7 @@ import fs from 'fs';
 import path from 'path';
 
 const peers = new Map<string, InstanceType<typeof Peer>>();
-let fileStream: fs.WriteStream | null = null;
-let receivedSize = 0;
-let expectedSize = 0;
+const receivedFiles: Record<string, {chunks: Buffer[], total: number}> = {};
 
 function createWindow(): void {
   // Create the browser window.
@@ -89,44 +87,39 @@ app.whenReady().then(() => {
       console.log('data recibida', data);
 
       try {
-        const _data = data.toString();
+        const packet = JSON.parse(data.toString());
 
-        if(isJsonString(_data)) {
-          const jsonData = JSON.parse(_data);
-          console.log('data (JSON)', jsonData);
-
-          if(jsonData.type === 'file-download') {
-            const { name, size } = jsonData;
-            const savePath = path.join(app.getPath("downloads"), name);
-            expectedSize = size;
-            receivedSize = 0;
-
-            fileStream = fs.createWriteStream(savePath);
-
+        if (packet.type === 'file-chunk') {
+          if (!receivedFiles[packet.fileName]) {
+            receivedFiles[packet.fileName] = {
+              chunks: [],
+              total: packet.totalChunks
+            };
           }
-        }else{
-          if(data == '__END__') {
-              fileStream?.end();
-              console.log("✅ Archivo recibido y guardado correctamente.");
-              fileStream = null;
-              expectedSize = 0;
 
+          receivedFiles[packet.fileName].chunks[packet.chunkIndex] = packet.data;
+
+          // Verificar si hemos recibido todos los chunks
+          const fileInfo = receivedFiles[packet.fileName];
+          if (fileInfo.chunks.length === fileInfo.total) {
+            const completeFile = Buffer.concat(fileInfo.chunks);
+            const filePath = path.join(app.getPath('downloads'), packet.fileName);
+
+            fs.writeFile(filePath, completeFile, (err) => {
+              if (err) {
+                console.error('Error guardando archivo:', err);
+              } else {
+                console.log('Archivo guardado:', filePath);
+              }
+            });
+
+            delete receivedFiles[packet.fileName];
           }
         }
       } catch (error) {
-
+        console.error('Error procesando datos:', error);
       }
 
-      if (fileStream) {
-            fileStream.write(data);
-            receivedSize += data.length;
-
-            if (receivedSize >= expectedSize) {
-                fileStream.end();
-                console.log("✅ Archivo recibido y guardado correctamente.");
-                fileStream = null;
-            }
-        }
     });
 
     // Manejar errores
@@ -138,25 +131,30 @@ app.whenReady().then(() => {
       return true; // Confirmar creación
   });
 
-  ipcMain.on('send-file', (event, { targetId, filePath }) => {
+  ipcMain.on('send-file', (event, { targetId, filePath, fileName, fileSize }) => {
     const peer = peers.get(targetId);
     if(!peer) return;
 
-    const fileName = path.basename(filePath);
-    const fileSize = fs.statSync(filePath).size;
-    peer.send(JSON.stringify({
-        type: "file-download",
-        name: fileName,
-        size: fileSize
-    }));
+    // Leer el archivo y enviarlo por chunks
+    const stream = fs.createReadStream(filePath);
+    let chunkIndex = 0;
 
-    const stream = fs.createReadStream(filePath, { highWaterMark: 16 * 1024 }); // 16 KB por chunk
-    stream.on("data", chunk => {
-        peer.send(chunk);
+    stream.on('data', (chunk) => {
+      const packet = {
+        type: 'file-chunk',
+        fileName,
+        fileSize,
+        chunkIndex,
+        totalChunks: Math.ceil(fileSize / (16 * 1024)),
+        data: chunk
+      };
+
+      peer.send(JSON.stringify(packet));
+      chunkIndex++;
     });
 
-    stream.on("end", () => {
-        peer.send("__END__");
+    stream.on('end', () => {
+      console.log('Archivo enviado completamente');
     });
   });
 
