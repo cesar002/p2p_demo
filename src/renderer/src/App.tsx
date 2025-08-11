@@ -20,6 +20,7 @@ function App(): React.JSX.Element {
   const [ selectedShareDirectory, setSelectedShareDirectory ] = useState<IShareFolder | null>(null);
   const [ selectedTargetShareDirectory, setSelectedTargetShareDirectory ] = useState<IShareFolder | null>(null);
 
+  const [ isConnected, setIsConnected] = useState<boolean>(false);
   const [ iniciandoConexion, setIniciandoConexion ] = useState(false);
   const [ clientsConnected, setClientsConnected ] = useState<string[]>([]);
   const [myId, setMyId] = useState<string | null>(null);
@@ -68,6 +69,20 @@ function App(): React.JSX.Element {
     setSelectedShareDirectory(selectedFolder);
   }
 
+  const downloadFile = (pathFile: string, fileName: string) => {
+    if(!targetId) return;
+    if(!isConnected) return;
+
+    wsRef.current?.send(JSON.stringify({
+      to: targetId,
+      type: 'DownloadFile',
+      data: {
+        pathFile,
+        fileName,
+      }
+    }));
+  }
+
   useEffect(() => {
       const ws = new WebSocket(SIGNAL_SERVER_URL);
       wsRef.current = ws;
@@ -94,7 +109,13 @@ function App(): React.JSX.Element {
           initWaitConnection(msg.from);
         }else if(msg.type === 'ShareFolderDirectory') {
           setSelectedTargetShareDirectory(msg.data);
-        };
+        }else if(msg.type === 'DownloadFile') {
+          const { pathFile } = msg.data;
+          window.electron.ipcRenderer.send('send-file', {
+            targetId: msg.from,
+            filePath: pathFile,
+          });
+        }
       }
 
       return () => {
@@ -120,6 +141,18 @@ function App(): React.JSX.Element {
   }, []);
 
   useEffect(()=>{
+    const handleIsconnected = (_, { targetId }) => {
+      setIsConnected(true);
+    }
+
+    window.electron.ipcRenderer.on('peer-connected', handleIsconnected);
+
+    return () => {
+      window.electron.ipcRenderer.removeAllListeners('peer-connected');
+    };
+  }, [])
+
+  useEffect(()=>{
     if(!selectedShareDirectory) return;
     if(!targetId) return;
 
@@ -136,6 +169,9 @@ function App(): React.JSX.Element {
       <div>
         <p>P2P Onefacture</p>
         <div>
+          { isConnected &&
+          <h3>Conexión establecida</h3>
+          }
           <h2>Mi ID: {myId}</h2>
 
           <br />
@@ -173,9 +209,11 @@ function App(): React.JSX.Element {
                 {selectedTargetShareDirectory?.files.map(file => (
                   <tr key={file.path} style={{ borderBottom: '1px solid #ccc' }}>
                     <td>
-                      <button>
+                      { isConnected &&
+                      <button onClick={()=>downloadFile(file.path, file.name)}>
                         Descargar
                       </button>
+                      }
                     </td>
                     <td>{file.name}</td>
 

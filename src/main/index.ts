@@ -8,6 +8,9 @@ import fs from 'fs';
 import path from 'path';
 
 const peers = new Map<string, InstanceType<typeof Peer>>();
+let fileStream: fs.WriteStream | null = null;
+let receivedSize = 0;
+let expectedSize = 0;
 
 function createWindow(): void {
   // Create the browser window.
@@ -81,8 +84,45 @@ app.whenReady().then(() => {
       event.sender.send('peer-connected', { targetId });
     });
 
+    //Receptor de datos, canal de datos
     peer.on('data', (data) => {
-      console.log('data', data.toString());
+      console.log('data recibida', data);
+      if (typeof data === 'string') {
+        if(isJsonString(data)) {
+          const jsonData = JSON.parse(data);
+          console.log('data (JSON)', jsonData);
+
+          if(jsonData.type === 'file-download') {
+            const { name, size } = jsonData;
+            const savePath = path.join(app.getPath("downloads"), name);
+            expectedSize = size;
+            receivedSize = 0;
+
+            fileStream = fs.createWriteStream(savePath);
+
+          }
+        }else{
+          if(data == '__END__') {
+              fileStream?.end();
+              console.log("✅ Archivo recibido y guardado correctamente.");
+              fileStream = null;
+              expectedSize = 0;
+
+          }
+        }
+      }
+
+      if (fileStream) {
+          fileStream.write(data);
+          receivedSize += data.length;
+
+          if (receivedSize >= expectedSize) {
+              fileStream.end();
+              console.log("✅ Archivo recibido y guardado correctamente.");
+              fileStream = null;
+          }
+      }
+
       event.sender.send('peer-data', { targetId, data: data.toString() });
     });
 
@@ -93,6 +133,28 @@ app.whenReady().then(() => {
       });
 
       return true; // Confirmar creación
+  });
+
+  ipcMain.on('send-file', (event, { targetId, filePath }) => {
+    const peer = peers.get(targetId);
+    if(!peer) return;
+
+    const fileName = path.basename(filePath);
+    const fileSize = fs.statSync(filePath).size;
+    peer.send(JSON.stringify({
+        type: "file-download",
+        name: fileName,
+        size: fileSize
+    }));
+
+    const stream = fs.createReadStream(filePath, { highWaterMark: 16 * 1024 }); // 16 KB por chunk
+    stream.on("data", chunk => {
+        peer.send(chunk);
+    });
+
+    stream.on("end", () => {
+        peer.send("__END__");
+    });
   });
 
   // Para enviar señales recibidas del otro peer (vía WebSocket)
@@ -156,7 +218,16 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
   }
-})
+});
 
 // In this file you can include the rest of your app's specific main process
 // code. You can also put them in separate files and require them here.
+
+function isJsonString(str: string): boolean {
+  try {
+    JSON.parse(str);
+    return true;
+  } catch {
+    return false;
+  }
+}
