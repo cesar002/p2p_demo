@@ -1,11 +1,12 @@
-import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
-import { join } from 'path'
-import { electronApp, optimizer, is } from '@electron-toolkit/utils'
-import icon from '../../resources/icon.png?asset'
+import { BrowserWindow, app, dialog, ipcMain, shell } from 'electron'
+import { electronApp, is, optimizer } from '@electron-toolkit/utils'
+
 import Peer from 'simple-peer';
-import wrtc from 'wrtc';
 import fs from 'fs';
+import icon from '../../resources/icon.png?asset'
+import { join } from 'path'
 import path from 'path';
+import wrtc from '@koush/wrtc'
 
 const peers = new Map<string, InstanceType<typeof Peer>>();
 const fileBuffers: Record<string, { chunks: string[], received: number, total: number, originalSize: number }> = {};
