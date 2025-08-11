@@ -87,43 +87,45 @@ app.whenReady().then(() => {
     //Receptor de datos, canal de datos
     peer.on('data', (data) => {
       console.log('data recibida', data);
-      if (typeof data === 'string') {
-        if(isJsonString(data)) {
-          const jsonData = JSON.parse(data);
-          console.log('data (JSON)', jsonData);
+      try {
+        if (typeof data === 'string') {
+          if(isJsonString(data)) {
+            const jsonData = JSON.parse(data);
+            console.log('data (JSON)', jsonData);
 
-          if(jsonData.type === 'file-download') {
-            const { name, size } = jsonData;
-            const savePath = path.join(app.getPath("downloads"), name);
-            expectedSize = size;
-            receivedSize = 0;
+            if(jsonData.type === 'file-download') {
+              const { name, size } = jsonData;
+              const savePath = path.join(app.getPath("downloads"), name);
+              expectedSize = size;
+              receivedSize = 0;
 
-            fileStream = fs.createWriteStream(savePath);
+              fileStream = fs.createWriteStream(savePath);
 
-          }
-        }else{
-          if(data == '__END__') {
-              fileStream?.end();
-              console.log("✅ Archivo recibido y guardado correctamente.");
-              fileStream = null;
-              expectedSize = 0;
+            }
+          }else{
+            if(data == '__END__') {
+                fileStream?.end();
+                console.log("✅ Archivo recibido y guardado correctamente.");
+                fileStream = null;
+                expectedSize = 0;
 
+            }
           }
         }
+
+        if (fileStream) {
+            fileStream.write(data);
+            receivedSize += data.length;
+
+            if (receivedSize >= expectedSize) {
+                fileStream.end();
+                console.log("✅ Archivo recibido y guardado correctamente.");
+                fileStream = null;
+            }
+        }
+      } catch (error) {
+        console.error('Error al procesar los datos:', error);
       }
-
-      if (fileStream) {
-          fileStream.write(data);
-          receivedSize += data.length;
-
-          if (receivedSize >= expectedSize) {
-              fileStream.end();
-              console.log("✅ Archivo recibido y guardado correctamente.");
-              fileStream = null;
-          }
-      }
-
-      event.sender.send('peer-data', { targetId, data: data.toString() });
     });
 
     // Manejar errores
