@@ -8,7 +8,7 @@ import fs from 'fs';
 import path from 'path';
 
 const peers = new Map<string, InstanceType<typeof Peer>>();
-const receivedFiles: Record<string, {chunks: Buffer[], total: number}> = {};
+const receivedChunks: Record<string, string[]> = {};
 
 function createWindow(): void {
   // Create the browser window.
@@ -84,19 +84,30 @@ app.whenReady().then(() => {
 
     //Receptor de datos, canal de datos
     peer.on('data', (data) => {
-      console.log('data recibida', data);
-
       try {
         const packet = JSON.parse(data.toString());
 
-        if (packet.type === 'file-base64') {
-          const fileBuffer = Buffer.from(packet.data, 'base64');
-          const filePath = path.join(app.getPath('downloads'), packet.fileName);
+        if (packet.type === 'file-base64-chunk') {
+          if (!receivedChunks[packet.fileName]) {
+            receivedChunks[packet.fileName] = new Array(packet.totalChunks);
+          }
 
-          fs.writeFile(filePath, fileBuffer, (err) => {
-            if (err) console.error('Error saving file:', err);
-            else console.log('file-received', packet.fileName);
-          });
+          receivedChunks[packet.fileName][packet.chunkIndex] = packet.data;
+
+          // Verificar si hemos recibido todos los chunks
+          if (receivedChunks[packet.fileName].filter(Boolean).length === packet.totalChunks) {
+            const completeBase64 = receivedChunks[packet.fileName].join('');
+            const fileBuffer = Buffer.from(completeBase64, 'base64');
+            const filePath = path.join(app.getPath('downloads'), packet.fileName);
+
+            fs.writeFile(filePath, fileBuffer, (err) => {
+              if (err) console.error('Error saving file:', err);
+              else {
+                console.log('file-received', packet.fileName);
+                delete receivedChunks[packet.fileName];
+              }
+            });
+          }
         }
       } catch (err) {
         console.error('Error processing data:', err);
@@ -151,22 +162,30 @@ app.whenReady().then(() => {
     const peer = peers.get(targetId);
     if(!peer) return;
 
+    const CHUNK_SIZE = 64 * 1024;
+
     try {
-      // Leer el archivo como Base64
       const fileBuffer = await fs.promises.readFile(filePath);
-      const base64Data = fileBuffer.toString('base64');
+      const totalChunks = Math.ceil(fileBuffer.length / CHUNK_SIZE);
 
-      const packet = {
-        type: 'file-base64',
-        fileName,
-        data: base64Data
-      };
+      for (let i = 0; i < totalChunks; i++) {
+        const chunk = fileBuffer.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+        const base64Chunk = chunk.toString('base64');
 
-      peer.send(JSON.stringify(packet));
+        const packet = {
+          type: 'file-base64-chunk',
+          fileName,
+          chunkIndex: i,
+          totalChunks,
+          data: base64Chunk
+        };
+
+        peer.send(JSON.stringify(packet));
+        await new Promise(resolve => setTimeout(resolve, 0)); // Para no bloquear el event loop
+      }
     } catch (err) {
-      console.error('Error reading file:', err);
+      console.error('Error sending file:', err);
     }
-
     // // Leer el archivo y enviarlo por chunks
     // const stream = fs.createReadStream(filePath);
     // let chunkIndex = 0;
