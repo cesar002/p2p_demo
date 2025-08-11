@@ -89,36 +89,52 @@ app.whenReady().then(() => {
       try {
         const packet = JSON.parse(data.toString());
 
-        if (packet.type === 'file-chunk') {
-          if (!receivedFiles[packet.fileName]) {
-            receivedFiles[packet.fileName] = {
-              chunks: [],
-              total: packet.totalChunks
-            };
-          }
+        if (packet.type === 'file-base64') {
+          const fileBuffer = Buffer.from(packet.data, 'base64');
+          const filePath = path.join(app.getPath('downloads'), packet.fileName);
 
-          receivedFiles[packet.fileName].chunks[packet.chunkIndex] = packet.data;
-
-          // Verificar si hemos recibido todos los chunks
-          const fileInfo = receivedFiles[packet.fileName];
-          if (fileInfo.chunks.length === fileInfo.total) {
-            const completeFile = Buffer.concat(fileInfo.chunks);
-            const filePath = path.join(app.getPath('downloads'), packet.fileName);
-
-            fs.writeFile(filePath, completeFile, (err) => {
-              if (err) {
-                console.error('Error guardando archivo:', err);
-              } else {
-                console.log('Archivo guardado:', filePath);
-              }
-            });
-
-            delete receivedFiles[packet.fileName];
-          }
+          fs.writeFile(filePath, fileBuffer, (err) => {
+            if (err) console.error('Error saving file:', err);
+            else console.log('file-received', packet.fileName);
+          });
         }
-      } catch (error) {
-        console.error('Error procesando datos:', error);
+      } catch (err) {
+        console.error('Error processing data:', err);
       }
+
+      // try {
+      //   const packet = JSON.parse(data.toString());
+
+      //   if (packet.type === 'file-chunk') {
+      //     if (!receivedFiles[packet.fileName]) {
+      //       receivedFiles[packet.fileName] = {
+      //         chunks: [],
+      //         total: packet.totalChunks
+      //       };
+      //     }
+
+      //     receivedFiles[packet.fileName].chunks[packet.chunkIndex] = packet.data;
+
+      //     // Verificar si hemos recibido todos los chunks
+      //     const fileInfo = receivedFiles[packet.fileName];
+      //     if (fileInfo.chunks.length === fileInfo.total) {
+      //       const completeFile = Buffer.concat(fileInfo.chunks);
+      //       const filePath = path.join(app.getPath('downloads'), packet.fileName);
+
+      //       fs.writeFile(filePath, completeFile, (err) => {
+      //         if (err) {
+      //           console.error('Error guardando archivo:', err);
+      //         } else {
+      //           console.log('Archivo guardado:', filePath);
+      //         }
+      //       });
+
+      //       delete receivedFiles[packet.fileName];
+      //     }
+      //   }
+      // } catch (error) {
+      //   console.error('Error procesando datos:', error);
+      // }
 
     });
 
@@ -131,31 +147,47 @@ app.whenReady().then(() => {
       return true; // Confirmar creación
   });
 
-  ipcMain.on('send-file', (event, { targetId, filePath, fileName, fileSize }) => {
+  ipcMain.on('send-file', async (event, { targetId, filePath, fileName, fileSize }) => {
     const peer = peers.get(targetId);
     if(!peer) return;
 
-    // Leer el archivo y enviarlo por chunks
-    const stream = fs.createReadStream(filePath);
-    let chunkIndex = 0;
+    try {
+      // Leer el archivo como Base64
+      const fileBuffer = await fs.promises.readFile(filePath);
+      const base64Data = fileBuffer.toString('base64');
 
-    stream.on('data', (chunk) => {
       const packet = {
-        type: 'file-chunk',
+        type: 'file-base64',
         fileName,
-        fileSize,
-        chunkIndex,
-        totalChunks: Math.ceil(fileSize / (16 * 1024)),
-        data: chunk
+        data: base64Data
       };
 
       peer.send(JSON.stringify(packet));
-      chunkIndex++;
-    });
+    } catch (err) {
+      console.error('Error reading file:', err);
+    }
 
-    stream.on('end', () => {
-      console.log('Archivo enviado completamente');
-    });
+    // // Leer el archivo y enviarlo por chunks
+    // const stream = fs.createReadStream(filePath);
+    // let chunkIndex = 0;
+
+    // stream.on('data', (chunk) => {
+    //   const packet = {
+    //     type: 'file-chunk',
+    //     fileName,
+    //     fileSize,
+    //     chunkIndex,
+    //     totalChunks: Math.ceil(fileSize / (16 * 1024)),
+    //     data: chunk
+    //   };
+
+    //   peer.send(JSON.stringify(packet));
+    //   chunkIndex++;
+    // });
+
+    // stream.on('end', () => {
+    //   console.log('Archivo enviado completamente');
+    // });
   });
 
   // Para enviar señales recibidas del otro peer (vía WebSocket)
