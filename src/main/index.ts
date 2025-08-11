@@ -87,33 +87,37 @@ app.whenReady().then(() => {
     //Receptor de datos, canal de datos
     peer.on('data', (data) => {
       console.log('data recibida', data);
+
       try {
-        if (typeof data === 'string') {
-          if(isJsonString(data)) {
-            const jsonData = JSON.parse(data);
-            console.log('data (JSON)', jsonData);
+        const _data = data.toString();
 
-            if(jsonData.type === 'file-download') {
-              const { name, size } = jsonData;
-              const savePath = path.join(app.getPath("downloads"), name);
-              expectedSize = size;
-              receivedSize = 0;
+        if(isJsonString(_data)) {
+          const jsonData = JSON.parse(_data);
+          console.log('data (JSON)', jsonData);
 
-              fileStream = fs.createWriteStream(savePath);
+          if(jsonData.type === 'file-download') {
+            const { name, size } = jsonData;
+            const savePath = path.join(app.getPath("downloads"), name);
+            expectedSize = size;
+            receivedSize = 0;
 
-            }
-          }else{
-            if(data == '__END__') {
-                fileStream?.end();
-                console.log("✅ Archivo recibido y guardado correctamente.");
-                fileStream = null;
-                expectedSize = 0;
+            fileStream = fs.createWriteStream(savePath);
 
-            }
+          }
+        }else{
+          if(data == '__END__') {
+              fileStream?.end();
+              console.log("✅ Archivo recibido y guardado correctamente.");
+              fileStream = null;
+              expectedSize = 0;
+
           }
         }
+      } catch (error) {
 
-        if (fileStream) {
+      }
+
+      if (fileStream) {
             fileStream.write(data);
             receivedSize += data.length;
 
@@ -123,9 +127,6 @@ app.whenReady().then(() => {
                 fileStream = null;
             }
         }
-      } catch (error) {
-        console.error('Error al procesar los datos:', error);
-      }
     });
 
     // Manejar errores
